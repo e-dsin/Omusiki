@@ -1,0 +1,70 @@
+{
+    "short_name": "OMusika",
+    "name": "OMusika - Streaming Musical Africain",
+    "description": "La plateforme de streaming musical dédiée à la musique africaine",
+    "icons": [
+        {
+            "src": "favicon.ico",
+            "sizes": "64x64 32x32 24x24 16x16",
+            "type": "image/x-icon"
+        },
+        {
+            "src": "logo192.png",
+            "type": "image/png",
+            "sizes": "192x192"
+        },
+        {
+            "src": "logo512.png",
+            "type": "image/png",
+            "sizes": "512x512"
+        }
+    ],
+    "start_url": ".",
+    "display": "standalone",
+    "theme_color": "#8B5CF6",
+    "background_color": "#0a192f",
+    "orientation": "portrait",
+    "categories": [
+        "music",
+        "entertainment"
+    ],
+    "shortcuts": [
+        {
+            "name": "Rechercher",
+            "short_name": "Recherche",
+            "description": "Rechercher de la musique",
+            "url": "/search",
+            "icons": [
+                {
+                    "src": "/icon-search.png",
+                    "sizes": "192x192"
+                }
+            ]
+        },
+        {
+            "name": "Ma Bibliothèque",
+            "short_name": "Bibliothèque",
+            "description": "Accéder à ma bibliothèque",
+            "url": "/library",
+            "icons": [
+                {
+                    "src": "/icon-library.png",
+                    "sizes": "192x192"
+                }
+            ]
+        }
+    ],
+    "screenshots": [
+        {
+            "src": "/screenshot1.png",
+            "type": "image/png",
+            "sizes": "540x720"
+        },
+        {
+            "src": "/screenshot2.png",
+            "type": "image/png",
+            "sizes": "540x720"
+        }
+    ],
+    "prefer_related_applications": false
+}

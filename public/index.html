@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#8B5CF6" />
+    <meta
+      name="description"
+      content="OMusiki - La plateforme de streaming musical africaine. Découvrez les meilleurs sons d'Afrique, du Makossa aux hits contemporains."
+    />
+    <meta
+      name="keywords"
+      content="musique africaine, streaming, makossa, afrobeat, musique camerounaise"
+    />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://omusika.com/" />
+    <meta property="og:title" content="OMusiki - Streaming Musical Africain" />
+    <meta
+      property="og:description"
+      content="Découvrez et écoutez la meilleure musique en streaming."
+    />
+    <meta property="og:image" content="%PUBLIC_URL%/og-image.png" />
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content="https://omusika.com/" />
+    <meta
+      property="twitter:title"
+      content="OMusiki - Streaming Musical Worlide"
+    />
+    <meta
+      property="twitter:description"
+      content="Découvrez et écoutez la meilleure musique mondiale en streaming."
+    />
+    <meta property="twitter:image" content="%PUBLIC_URL%/og-image.png" />
+
+    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
+    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+
+    <!-- Google Fonts - Montserrat -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+
+    <title>OMusika - Streaming Musical Africain</title>
+
+    <!-- Tailwind CSS (si vous utilisez le CDN au lieu de l'installation npm) -->
+    <!-- <script src="https://cdn.tailwindcss.com"></script> -->
+
+    <style>
+      /* Styles de chargement initial */
+      #root {
+        min-height: 100vh;
+        background-color: #f3f4f6;
+      }
+
+      .loader-container {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(
+          135deg,
+          #0a192f 0%,
+          #112240 50%,
+          #1a365d 100%
+        );
+        z-index: 9999;
+        transition: opacity 0.3s ease-out;
+      }
+
+      .loader {
+        width: 60px;
+        height: 60px;
+        border: 4px solid rgba(139, 92, 246, 0.2);
+        border-top-color: #8b5cf6;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      .loader-text {
+        position: absolute;
+        bottom: 40%;
+        color: white;
+        font-family: 'Montserrat', sans-serif;
+        font-size: 1.5rem;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+      }
+
+      /* Masquer le loader quand React est chargé */
+      .loader-container.fade-out {
+        opacity: 0;
+        pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    <noscript>
+      <div
+        style="
+          padding: 20px;
+          text-align: center;
+          font-family: 'Montserrat', sans-serif;
+        "
+      >
+        <h1 style="color: #8b5cf6; margin-bottom: 10px">
+          JavaScript est requis
+        </h1>
+        <p>
+          Vous devez activer JavaScript dans votre navigateur pour utiliser
+          OMusika.
+        </p>
+      </div>
+    </noscript>
+
+    <!-- Loader de démarrage -->
+    <div id="initial-loader" class="loader-container">
+      <div>
+        <div class="loader"></div>
+        <p class="loader-text">Ô musiki</p>
+      </div>
+    </div>
+
+    <div id="root"></div>
+
+    <script>
+      // Cacher le loader quand React est prêt
+      window.addEventListener('load', function () {
+        setTimeout(function () {
+          const loader = document.getElementById('initial-loader');
+          if (loader) {
+            loader.classList.add('fade-out');
+            setTimeout(function () {
+              loader.style.display = 'none';
+            }, 300);
+          }
+        }, 100);
+      });
+
+      // Detection du mode offline
+      window.addEventListener('online', function () {
+        console.log('Connexion rétablie');
+      });
+
+      window.addEventListener('offline', function () {
+        console.log('Mode hors ligne activé');
+      });
+
+      // Service Worker pour le mode offline (optionnel)
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function () {
+          navigator.serviceWorker
+            .register('%PUBLIC_URL%/service-worker.js')
+            .then(function (registration) {
+              console.log('ServiceWorker registration successful');
+            })
+            .catch(function (err) {
+              console.log('ServiceWorker registration failed: ', err);
+            });
+        });
+      }
+    </script>
+  </body>
+</html>

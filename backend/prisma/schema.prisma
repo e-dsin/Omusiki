@@ -1,0 +1,124 @@
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  password     String
+  name         String
+  subscription String   @default("Gratuit")
+  avatar       String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  playlists    Playlist[]
+  listenings   Listening[]
+  favorites    Favorite[]
+}
+
+model Song {
+  id          Int      @id @default(autoincrement())
+  title       String
+  artist      String
+  album       String
+  duration    Int
+  genre       String
+  coverUrl    String?
+  audioUrl    String
+  releaseDate DateTime
+  playCount   Int      @default(0)
+  
+  playlists   PlaylistSong[]
+  listenings  Listening[]
+  favorites   Favorite[]
+}
+
+model Playlist {
+  id        Int      @id @default(autoincrement())
+  name      String
+  userId    Int
+  isPublic  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  user      User           @relation(fields: [userId], references: [id])
+  songs     PlaylistSong[]
+}
+
+model PlaylistSong {
+  playlistId Int
+  songId     Int
+  position   Int
+  addedAt    DateTime @default(now())
+  
+  playlist   Playlist @relation(fields: [playlistId], references: [id])
+  song       Song     @relation(fields: [songId], references: [id])
+  
+  @@id([playlistId, songId])
+}
+
+model Listening {
+  id             Int      @id @default(autoincrement())
+  userId         Int
+  songId         Int
+  startTime      DateTime @default(now())
+  endTime        DateTime?
+  completionRate Float    @default(0)
+  
+  user           User     @relation(fields: [userId], references: [id])
+  song           Song     @relation(fields: [songId], references: [id])
+}
+
+model Favorite {
+  userId    Int
+  songId    Int
+  createdAt DateTime @default(now())
+  
+  user      User @relation(fields: [userId], references: [id])
+  song      Song @relation(fields: [songId], references: [id])
+  
+  @@id([userId, songId])
+}
+
+// jest.config.js
+
+module.exports = {
+  preset: 'ts-jest',
+  testEnvironment: 'jsdom',
+  roots: ['<rootDir>/src'],
+  testMatch: ['**/__tests__/**/*.+(ts|tsx|js)', '**/?(*.)+(spec|test).+(ts|tsx|js)'],
+  transform: {
+    '^.+\\.(ts|tsx)$': 'ts-jest',
+  },
+  moduleNameMapper: {
+    '^@/(.*)$': '<rootDir>/src/$1',
+    '^@components/(.*)$': '<rootDir>/src/components/$1',
+    '^@services/(.*)$': '<rootDir>/src/services/$1',
+    '^@utils/(.*)$': '<rootDir>/src/utils/$1',
+    '^@hooks/(.*)$': '<rootDir>/src/hooks/$1',
+    '^@types/(.*)$': '<rootDir>/src/types/$1',
+    '\\.(css|less|scss|sass)$': 'identity-obj-proxy',
+  },
+  setupFilesAfterEnv: ['<rootDir>/src/setupTests.ts'],
+  collectCoverageFrom: [
+    'src/**/*.{ts,tsx}',
+    '!src/**/*.d.ts',
+    '!src/index.tsx',
+    '!src/reportWebVitals.ts',
+  ],
+  coverageThreshold: {
+    global: {
+      branches: 70,
+      functions: 70,
+      lines: 70,
+      statements: 70,
+    },
+  },
+};
