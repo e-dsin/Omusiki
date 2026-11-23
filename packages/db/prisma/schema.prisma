@@ -1,0 +1,147 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUBSCRIBER
+  ARTIST
+  ADMIN
+}
+
+enum AccessMode {
+  FREE
+  SUBSCRIPTION
+  PURCHASE
+}
+
+enum TitleStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REFUSED
+}
+
+enum EntitlementSource {
+  stripe
+  apple
+  google
+  aftawallet
+}
+
+model User {
+  id             String         @id @default(cuid())
+  providerUserId String         @unique
+  email          String         @unique
+  name           String
+  role           Role           @default(SUBSCRIBER)
+  avatarUrl      String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  artist         Artist?
+  entitlements   Entitlement[]
+  plays          Play[]
+  deviceTokens   DeviceToken[]
+}
+
+model Artist {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  user               User     @relation(fields: [userId], references: [id])
+  bio                String?
+  verificationStatus String   @default("pending")
+  titles             Title[]
+}
+
+model PriceTier {
+  id              String  @id @default(cuid())
+  name            String
+  amountCents     Int
+  currency        String  @default("eur")
+  stripePriceId   String
+  appleProductId  String
+  googleProductId String
+  titles          Title[]
+}
+
+model Plan {
+  id              String        @id @default(cuid())
+  name            String
+  amountCents     Int
+  currency        String        @default("eur")
+  interval        String        @default("month")
+  stripePriceId   String
+  appleProductId  String
+  googleProductId String
+  entitlements    Entitlement[]
+}
+
+model Title {
+  id                String      @id @default(cuid())
+  artistId          String
+  artist            Artist      @relation(fields: [artistId], references: [id])
+  name              String
+  genre             String
+  country           String?
+  description       String?
+  coverUrl          String?
+  status            TitleStatus @default(DRAFT)
+  access            AccessMode  @default(SUBSCRIPTION)
+  priceTierId       String?
+  priceTier         PriceTier?  @relation(fields: [priceTierId], references: [id])
+  trailerMuxAssetId String?
+  trailerPlaybackId String?
+  fullMuxAssetId    String?
+  fullPlaybackId    String?
+  offlineFileUrl    String?
+  durationSeconds   Int?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  plays             Play[]
+  entitlements      Entitlement[]
+
+  @@index([status])
+  @@index([genre])
+}
+
+model Entitlement {
+  id         String            @id @default(cuid())
+  userId     String
+  user       User              @relation(fields: [userId], references: [id])
+  planId     String?
+  plan       Plan?             @relation(fields: [planId], references: [id])
+  titleId    String?
+  title      Title?            @relation(fields: [titleId], references: [id])
+  source     EntitlementSource
+  status     String            @default("active")
+  expiresAt  DateTime?
+  externalId String?
+  createdAt  DateTime          @default(now())
+
+  @@index([userId, status])
+  @@index([externalId])
+}
+
+model Play {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  titleId      String
+  title        Title    @relation(fields: [titleId], references: [id])
+  secondsHeard Int
+  startedAt    DateTime @default(now())
+
+  @@index([titleId])
+}
+
+model DeviceToken {
+  id       String @id @default(cuid())
+  userId   String
+  user     User   @relation(fields: [userId], references: [id])
+  token    String @unique
+  platform String
+}

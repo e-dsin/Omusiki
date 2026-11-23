@@ -1,0 +1,18 @@
+{
+  "expo": {
+    "name": "Ô musiki",
+    "slug": "omusiki",
+    "scheme": "omusiki",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "bundleIdentifier": "fr.omusiki.app",
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "fr.omusiki.app"
+    },
+    "plugins": []
+  }
+}

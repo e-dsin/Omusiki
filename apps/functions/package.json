@@ -1,0 +1,21 @@
+{
+  "name": "@omusiki/functions",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts"
+  },
+  "dependencies": {
+    "@omusiki/db": "*",
+    "dotenv": "^16.6.1",
+    "express": "^4.21.2",
+    "stripe": "^18.5.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.23",
+    "@types/node": "^24.10.1",
+    "tsx": "^4.20.6"
+  }
+}
