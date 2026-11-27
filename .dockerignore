@@ -1,0 +1,8 @@
+**/node_modules
+**/.expo
+**/dist
+**/.git
+apps/legacy-web/public/biblio
+apps/legacy-web/build
+.env
+*.log
