@@ -1,9 +1,11 @@
 import "dotenv/config";
+import { randomBytes } from "node:crypto";
 import cors from "cors";
 import express from "express";
 import { prisma, upsertViewer, viewerCanPlay, grantEntitlement, playCount, indexTitle, trackEvent } from "@omusiki/db";
 import type { AccessMode, Role } from "@omusiki/types";
-import { optionalViewer, requireRole, requireViewer, signDevToken, type AuthedRequest } from "./auth.js";
+import { firebaseAdminAuth, optionalViewer, requireRole, requireViewer, signDevToken, type AuthedRequest } from "./auth.js";
+import { sendArtistInvite } from "./mail.js";
 import { cacheDel, cacheGet, cacheSet, createDirectUpload, playbackUrl, signedPlaybackToken, stripeClient } from "./services.js";
 
 const app = express();
@@ -23,6 +25,7 @@ function summarize(title: {
   durationSeconds: number | null;
   trailerPlaybackId: string | null;
   artist: { user: { name: string } };
+  priceTier?: { amountCents: number; currency: string; appleProductId: string; googleProductId: string } | null;
 }) {
   return {
     id: title.id,
@@ -35,6 +38,14 @@ function summarize(title: {
     status: title.status,
     durationSeconds: title.durationSeconds,
     hasTrailer: Boolean(title.trailerPlaybackId),
+    price: title.priceTier
+      ? {
+          amountCents: title.priceTier.amountCents,
+          currency: title.priceTier.currency,
+          appleProductId: title.priceTier.appleProductId,
+          googleProductId: title.priceTier.googleProductId,
+        }
+      : null,
   };
 }
 
@@ -63,8 +74,11 @@ app.post("/api/auth/dev-session", async (req, res) => {
   res.json({ token, viewer: user });
 });
 
-app.get("/api/me", requireViewer, (req: AuthedRequest, res) => {
-  res.json(req.viewer);
+app.get("/api/me", requireViewer, async (req: AuthedRequest, res) => {
+  const artist = req.viewer!.role === "ARTIST"
+    ? await prisma.artist.findUnique({ where: { userId: req.viewer!.id } })
+    : null;
+  res.json({ ...req.viewer, bio: artist?.bio ?? "" });
 });
 
 app.patch("/api/me", requireViewer, async (req: AuthedRequest, res) => {
@@ -284,6 +298,75 @@ app.post("/api/admin/price-tiers", requireViewer, requireRole("ADMIN"), async (r
     },
   });
   res.status(201).json(tier);
+});
+
+app.get("/api/admin/artists", requireViewer, requireRole("ADMIN"), async (_req, res) => {
+  const artists = await prisma.artist.findMany({
+    include: { user: true, _count: { select: { titles: true } } },
+    orderBy: { user: { name: "asc" } },
+  });
+  res.json(artists.map((artist) => ({
+    id: artist.id,
+    name: artist.user.name,
+    email: artist.user.email,
+    titles: artist._count.titles,
+  })));
+});
+
+app.post("/api/admin/artists", requireViewer, requireRole("ADMIN"), async (req, res) => {
+  const name = String(req.body.name || "").trim();
+  const email = String(req.body.email || "").trim().toLowerCase();
+  if (!name || !email) return res.status(400).json({ message: "Le nom et l'email sont requis" });
+
+  const adminAuth = firebaseAdminAuth();
+  if (!adminAuth) return res.status(503).json({ message: "Firebase Auth n'est pas configuré" });
+
+  const temporaryPassword = randomBytes(18).toString("base64url");
+  const cmsUrl = process.env.CMS_URL || "http://localhost:5174";
+  let firebaseUid = "";
+  try {
+    const record = await adminAuth.createUser({
+      email,
+      password: temporaryPassword,
+      displayName: name,
+      emailVerified: false,
+    });
+    firebaseUid = record.uid;
+    await adminAuth.setCustomUserClaims(record.uid, { role: "ARTIST" });
+    const resetLink = await adminAuth.generatePasswordResetLink(email, { url: cmsUrl });
+    const user = await upsertViewer({
+      providerUserId: record.uid,
+      email,
+      name,
+      role: "ARTIST",
+      syncRole: true,
+    });
+    const delivery = await sendArtistInvite({ to: email, name, temporaryPassword, resetLink, cmsUrl });
+    if (!delivery.emailed && process.env.ALLOW_DEV_AUTH !== "true") {
+      throw new Error("SMTP is not configured");
+    }
+    res.status(201).json({
+      id: user.id,
+      email: user.email,
+      emailed: delivery.emailed,
+      ...(delivery.emailed ? {} : { temporaryPassword, resetLink }),
+    });
+  } catch (error) {
+    if (firebaseUid) {
+      await adminAuth.deleteUser(firebaseUid).catch(() => undefined);
+      const created = await prisma.user.findUnique({ where: { providerUserId: firebaseUid } });
+      if (created) {
+        await prisma.artist.deleteMany({ where: { userId: created.id } });
+        await prisma.user.delete({ where: { id: created.id } });
+      }
+    }
+    const code = (error as { code?: string }).code;
+    if (code === "auth/email-already-exists") {
+      return res.status(409).json({ message: "Un compte existe déjà pour cet email" });
+    }
+    const message = error instanceof Error ? error.message : "Création impossible";
+    res.status(message === "SMTP is not configured" ? 503 : 500).json({ message });
+  }
 });
 
 app.post("/api/checkout/stripe", requireViewer, async (req: AuthedRequest, res) => {

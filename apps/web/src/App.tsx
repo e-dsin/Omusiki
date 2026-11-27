@@ -1,5 +1,16 @@
 import { useEffect, useState, type FormEvent } from "react";
+import { onAuthStateChanged } from "firebase/auth";
 import { api } from "./api";
+import {
+  firebaseAuth,
+  firebaseReady,
+  remember,
+  signInWithApple,
+  signInWithEmail,
+  signInWithGoogle,
+  signOutFirebase,
+  signUpWithEmail,
+} from "./firebase";
 
 interface Title {
   id: string;
@@ -29,7 +40,8 @@ interface Playback {
 }
 
 export function App() {
-  const [token, setToken] = useState(localStorage.getItem("omusiki_token"));
+  const [token, setToken] = useState(firebaseReady ? null : localStorage.getItem("omusiki_token"));
+  const [creating, setCreating] = useState(false);
   const [viewer, setViewer] = useState<Viewer | null>(null);
   const [titles, setTitles] = useState<Title[]>([]);
   const [query, setQuery] = useState("");
@@ -38,6 +50,13 @@ export function App() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [message, setMessage] = useState("");
   const [name, setName] = useState("");
+
+  useEffect(() => {
+    if (!firebaseReady) return;
+    return onAuthStateChanged(firebaseAuth(), async (user) => {
+      setToken(user ? await remember(user) : null);
+    });
+  }, []);
 
   useEffect(() => {
     if (!token) return;
@@ -52,16 +71,35 @@ export function App() {
   async function signIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const session = await api<{ token: string }>("/api/auth/dev-session", {
-      method: "POST",
-      body: JSON.stringify({
-        email: form.get("email"),
-        name: form.get("name"),
-        role: "SUBSCRIBER",
-      }),
-    });
-    localStorage.setItem("omusiki_token", session.token);
-    setToken(session.token);
+    const email = String(form.get("email") || "");
+    const password = String(form.get("password") || "");
+    const displayName = String(form.get("name") || "");
+    try {
+      if (firebaseReady) {
+        setToken(
+          creating
+            ? await signUpWithEmail(email, password, displayName)
+            : await signInWithEmail(email, password)
+        );
+        return;
+      }
+      const session = await api<{ token: string }>("/api/auth/dev-session", {
+        method: "POST",
+        body: JSON.stringify({ email, name: displayName || email, role: "SUBSCRIBER" }),
+      });
+      localStorage.setItem("omusiki_token", session.token);
+      setToken(session.token);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Connexion impossible");
+    }
+  }
+
+  async function social(kind: "google" | "apple") {
+    try {
+      setToken(kind === "google" ? await signInWithGoogle() : await signInWithApple());
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Connexion impossible");
+    }
   }
 
   async function search(event: FormEvent) {
@@ -97,72 +135,137 @@ export function App() {
 
   if (!token) {
     return (
-      <main>
-        <h1>Ô musiki</h1>
-        <p className="muted">Connexion par e-mail. Google et Apple passent par Clerk lorsque la clé est configurée.</p>
-        <form className="card row" onSubmit={signIn}>
-          <input name="name" placeholder="Nom" required />
-          <input name="email" type="email" placeholder="Email" required />
-          <button type="submit">Entrer</button>
-        </form>
+      <main className="gate">
+        <section className="gate-card">
+          <span className="mark" aria-hidden="true">Ô</span>
+          <div>
+            <p className="eyebrow">Streaming africain</p>
+            <h1>Ô musiki</h1>
+          </div>
+          <p className="lede">Makossa, Afrobeat, Rumba et les sons du continent. Entrez pour écouter.</p>
+          {message && <p className="banner">{message}</p>}
+          <form onSubmit={signIn}>
+            {creating && (
+              <label>
+                Nom
+                <input name="name" placeholder="Votre nom" required={creating} />
+              </label>
+            )}
+            <label>
+              Email
+              <input name="email" type="email" placeholder="vous@exemple.com" required />
+            </label>
+            {firebaseReady && (
+              <label>
+                Mot de passe
+                <input name="password" type="password" placeholder="6 caractères minimum" required minLength={6} />
+              </label>
+            )}
+            <button className="primary" type="submit">{creating ? "Créer un compte" : "Entrer"}</button>
+            {firebaseReady && (
+              <button className="ghost" type="button" onClick={() => setCreating((value) => !value)}>
+                {creating ? "J'ai déjà un compte" : "Créer un compte"}
+              </button>
+            )}
+          </form>
+          {firebaseReady && (
+            <div className="social">
+              <button className="ghost" type="button" onClick={() => social("google")}>Continuer avec Google</button>
+              <button className="ghost" type="button" onClick={() => social("apple")}>Continuer avec Apple</button>
+            </div>
+          )}
+        </section>
       </main>
     );
   }
 
   return (
-    <main>
-      <header className="row">
-        <h1>Ô musiki</h1>
-        <span className="muted">{viewer?.email}</span>
-        <button
-          onClick={() => {
-            localStorage.removeItem("omusiki_token");
-            setToken(null);
-          }}
-        >
-          Sortir
-        </button>
-      </header>
-      {message && <p>{message}</p>}
-      <form className="row" onSubmit={search}>
-        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Titre, artiste, genre" />
-        <button type="submit">Rechercher</button>
-      </form>
-      {titles.map((title) => (
-        <article className="card" key={title.id}>
-          <strong>{title.name}</strong>
-          <div className="muted">{title.artistName} · {title.genre} · {title.access}</div>
-          <div className="row">
-            <button onClick={() => openTitle(title, "trailer")}>Bande-annonce</button>
-            <button onClick={() => openTitle(title, "full")}>Contenu complet</button>
+    <div className="shell">
+      <header className="topbar">
+        <div className="brand">
+          <span className="mark" aria-hidden="true">Ô</span>
+          <div>
+            <strong>Ô musiki</strong>
+            <span>Catalogue</span>
           </div>
-        </article>
-      ))}
-      {selected && playback?.hlsUrl && (
-        <section className="card">
-          <h2>{selected.name}</h2>
-          {playback.hlsUrl.includes(".m3u8") ? (
-            <video src={playback.hlsUrl} controls />
-          ) : (
-            <audio src={playback.hlsUrl} controls />
-          )}
-        </section>
-      )}
-      <section className="card">
-        <h2>Abonnement</h2>
-        <div className="row">
-          {plans.map((plan) => (
-            <button key={plan.id} onClick={() => checkout(plan.id)}>
-              {plan.name} · {(plan.amountCents / 100).toFixed(2)} {plan.currency}
-            </button>
-          ))}
         </div>
-      </section>
-      <form className="card row" onSubmit={saveProfile}>
-        <h2>Compte</h2>
-        <input value={name} onChange={(event) => setName(event.target.value)} />
-        <button type="submit">Enregistrer</button>
-      </form>
-    </main>
+        <form className="search" onSubmit={search}>
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Titre, artiste, genre" aria-label="Recherche" />
+          <button className="primary" type="submit">Rechercher</button>
+        </form>
+        <div className="account-chip">
+          <span>{viewer?.name || viewer?.email}</span>
+          <button
+            className="ghost"
+            type="button"
+            onClick={() => {
+              signOutFirebase().finally(() => setToken(null));
+            }}
+          >
+            Sortir
+          </button>
+        </div>
+      </header>
+      <main className="page">
+        {message && <p className="banner">{message}</p>}
+        <section className="hero">
+          <p className="eyebrow">À écouter</p>
+          <h1>Les titres du continent</h1>
+          <p className="lede">Les bandes-annonces sont ouvertes. Le contenu complet suit votre accès.</p>
+        </section>
+        <section className="grid">
+          {titles.length === 0 && <p className="empty">Aucun titre pour cette recherche.</p>}
+          {titles.map((title) => (
+            <article className="card" key={title.id}>
+              <span className="pill">{accessLabel(title.access)}</span>
+              <h3>{title.name}</h3>
+              <p className="muted">{title.artistName} · {title.genre}</p>
+              <div className="actions">
+                <button className="ghost" type="button" onClick={() => openTitle(title, "trailer")}>Bande-annonce</button>
+                <button className="primary" type="button" onClick={() => openTitle(title, "full")}>Écouter</button>
+              </div>
+            </article>
+          ))}
+        </section>
+        {selected && playback?.hlsUrl && (
+          <section className="player">
+            <p className="eyebrow">Lecture</p>
+            <h2>{selected.name}</h2>
+            <p className="muted">{selected.artistName}</p>
+            {playback.hlsUrl.includes(".m3u8") ? (
+              <video src={playback.hlsUrl} controls />
+            ) : (
+              <audio src={playback.hlsUrl} controls />
+            )}
+          </section>
+        )}
+        <section className="plans">
+          <h2>Abonnement</h2>
+          <div className="plan-grid">
+            {plans.length === 0 && <p className="empty">Aucun forfait publié.</p>}
+            {plans.map((plan) => (
+              <button className="plan" key={plan.id} type="button" onClick={() => checkout(plan.id)}>
+                <span>{plan.name}</span>
+                <strong>{(plan.amountCents / 100).toFixed(2)} {plan.currency.toUpperCase()}</strong>
+              </button>
+            ))}
+          </div>
+        </section>
+        <form className="account" onSubmit={saveProfile}>
+          <h2>Compte</h2>
+          <label>
+            Nom
+            <input value={name} onChange={(event) => setName(event.target.value)} />
+          </label>
+          <button className="primary" type="submit">Enregistrer</button>
+        </form>
+      </main>
+    </div>
   );
+}
+
+function accessLabel(access: string) {
+  if (access === "FREE") return "Gratuit";
+  if (access === "PURCHASE") return "Achat";
+  return "Abonnement";
 }

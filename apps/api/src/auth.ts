@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
-import { verifyToken } from "@clerk/backend";
+import { cert, getApps, initializeApp } from "firebase-admin/app";
+import { getAuth } from "firebase-admin/auth";
 import { prisma, upsertViewer } from "@omusiki/db";
 import type { Role } from "@omusiki/types";
 
@@ -14,8 +15,25 @@ export interface AuthedRequest extends Request {
   };
 }
 
+const roles: Role[] = ["SUBSCRIBER", "ARTIST", "ADMIN"];
+
 function devSecret() {
   return process.env.DEV_AUTH_SECRET || "dev-only-change-me";
+}
+
+function asRole(value: unknown): Role | undefined {
+  return roles.includes(value as Role) ? (value as Role) : undefined;
+}
+
+export function firebaseAdminAuth() {
+  const projectId = process.env.FIREBASE_PROJECT_ID;
+  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+  const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
+  if (!projectId || !clientEmail || !privateKey) return null;
+  if (!getApps().length) {
+    initializeApp({ credential: cert({ projectId, clientEmail, privateKey }) });
+  }
+  return getAuth();
 }
 
 export function signDevToken(input: {
@@ -31,12 +49,18 @@ export function signDevToken(input: {
 }
 
 async function identityFromToken(token: string) {
-  if (process.env.CLERK_SECRET_KEY) {
+  const adminAuth = firebaseAdminAuth();
+  if (adminAuth) {
     try {
-      const payload = await verifyToken(token, { secretKey: process.env.CLERK_SECRET_KEY });
-      const email = typeof payload.email === "string" ? payload.email : "";
-      const name = typeof payload.name === "string" ? payload.name : email;
-      return { providerUserId: payload.sub, email, name, role: undefined as Role | undefined };
+      const decoded = await adminAuth.verifyIdToken(token);
+      const role = asRole(decoded.role);
+      return {
+        providerUserId: decoded.uid,
+        email: decoded.email || `${decoded.uid}@users.firebase`,
+        name: decoded.name || decoded.email || "Abonné",
+        role,
+        syncRole: Boolean(role),
+      };
     } catch {
       if (process.env.ALLOW_DEV_AUTH !== "true") throw new Error("Invalid session");
     }
@@ -48,7 +72,8 @@ async function identityFromToken(token: string) {
       providerUserId: String(payload.sub),
       email: String(payload.email),
       name: String(payload.name),
-      role: payload.role as Role,
+      role: asRole(payload.role),
+      syncRole: false,
     };
   }
   throw new Error("Invalid session");

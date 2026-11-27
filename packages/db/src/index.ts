@@ -9,10 +9,15 @@ export async function upsertViewer(input: {
   email: string;
   name: string;
   role?: "SUBSCRIBER" | "ARTIST" | "ADMIN";
+  syncRole?: boolean;
 }) {
   const user = await prisma.user.upsert({
     where: { providerUserId: input.providerUserId },
-    update: { email: input.email, name: input.name },
+    update: {
+      email: input.email,
+      name: input.name,
+      ...(input.syncRole && input.role ? { role: input.role } : {}),
+    },
     create: {
       providerUserId: input.providerUserId,
       email: input.email,

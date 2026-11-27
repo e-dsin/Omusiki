@@ -27,7 +27,7 @@ flowchart LR
   db[(Postgres)]
   redis[(Redis)]
   search[Search]
-  idp[Auth_provider]
+  idp[Firebase_Auth]
   mux[Mux]
   files[Object_storage]
   pay[Stripe_and_Aftawallet]
@@ -63,7 +63,7 @@ flowchart LR
 
 - `apps/web` — the subscriber web app. Playback, search, and Stripe checkout.
 - `apps/mobile` — one Expo / React Native codebase, built for Apple and Android. Store billing, streaming, and offline downloads.
-- `apps/cms` — Payload, on the same Postgres database. Artists upload the trailer and the full title here. Administrators approve titles, plans, and price tiers.
+- `apps/cms` — the artist and administrator backoffice, on Firebase Auth. An administrator creates each artist. The API generates a temporary password, emails it with a link to choose a new password, and the artist then signs in to manage their account and their titles.
 - `apps/api` — the client-facing service. Node, TypeScript, Express, and Prisma. The web and mobile apps reach the platform only through this API.
 - `apps/functions` — serverless handlers for Mux, Stripe, Apple, and Google webhooks, plus search indexing, push, and analytics.
 - `packages/types` — request and response types shared by the web app, the mobile app, the CMS, the API, and the functions.
@@ -71,7 +71,7 @@ flowchart LR
 ### What the API owns
 
 - Catalog reads and search queries. A function updates the search index when a title is approved or changed.
-- Profile updates. Sign-up and sign-in with email, Google, and Apple stay with the identity provider. The API stores the provider user id, the role, and the profile fields.
+- Profile updates. Sign-up and sign-in with email, Google, and Apple stay with Firebase Auth. The API checks the Firebase ID token and stores the Firebase user id, the role, and the profile fields. An artist or administrator role is the trusted custom claim `role`.
 - Mux upload URLs for the trailer and the full title. The media bytes go to Mux.
 - Public trailer playback. Anyone can watch a trailer.
 - A short-lived signed playback token for the full title when the title is free, the viewer has an active subscription, or the viewer has paid the title fee.
@@ -90,7 +90,7 @@ An administrator defines a small set of subscription plans. An administrator or 
 - Serverless functions for webhooks and background work.
 - Mixpanel for product events such as views, searches, trailer plays, full plays, and purchases.
 - Mux for ingest, transcoding, and HLS. A webhook writes each asset id and playback id back onto the title.
-- An identity provider with web and React Native support for email, Google, and Apple. Clerk is the smaller integration. Cognito is the option named in the cadrage.
+- Firebase Auth for email, Google, and Apple on the web, the CMS, and the React Native app. The API verifies ID tokens with the Firebase Admin SDK.
 - Stripe Checkout on the web for card subscriptions and one-time title purchases. Aftawallet on the web for prepaid mobile-money passes.
 - Apple In-App Purchase and Google Play Billing in the React Native app, for the same plans and price tiers.
 - Expo push when a title is approved.
